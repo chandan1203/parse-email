@@ -2,13 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use Webklex\IMAP\Facades\Client;
-use Illuminate\Support\Facades\Storage;
-use Smalot\PdfParser\Parser;
-use App\Models\LogEntry;
-use Illuminate\Support\LazyCollection;
-use App\Models\OperatorSmsHistory;
 use File;
+use League\Csv\Writer;
+use SplTempFileObject;
+use App\Models\LogEntry;
+use Spatie\PdfToText\Pdf;
+use Smalot\PdfParser\Parser;
+use Webklex\IMAP\Facades\Client;
+use App\Models\OperatorSmsHistory;
+use Illuminate\Support\LazyCollection;
+use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 
 class EmailParseController extends Controller
 {
@@ -41,23 +46,27 @@ class EmailParseController extends Controller
                             if (!File::exists($file_name) && !is_dir($file_name)) {
                                 $attachment->save(storage_path('app/public/'), $file_name);
                             }
+                            $this->convert($file_name);
+                            // $this->pdftoexcel();
+                            // $this->pdftocsv();
+                            exit;
                             //end
                         }
                         //end
                         //downloading xlsx
-                        if ($type == 'bin') {
-                            $check_file = public_path('storage/') . urlencode($attachment->name);
-                            //check if file exist or not
-                            if (!File::exists($check_file) && !is_dir($check_file)) {
-                                //save attachment
-                                $attachment->save(storage_path('app/public/'), urlencode($attachment->name));
-                                //end
-                            }
-                            //inserting into database
-                            $this->saveFromExcel(urlencode($attachment->name));
-                            //end
-                            exit;
-                        }
+                        // if ($type == 'bin') {
+                        //     $check_file = public_path('storage/') . urlencode($attachment->name);
+                        //     //check if file exist or not
+                        //     if (!File::exists($check_file) && !is_dir($check_file)) {
+                        //         //save attachment
+                        //         $attachment->save(storage_path('app/public/'), urlencode($attachment->name));
+                        //         //end
+                        //     }
+                        //     //inserting into database
+                        //     $this->saveFromExcel(urlencode($attachment->name));
+                        //     //end
+                        //     exit;
+                        // }
                         //end
                     }
                 }
@@ -104,34 +113,90 @@ class EmailParseController extends Controller
         OperatorSmsHistory::insert($sms_records);
         echo 'Data inserted successfully';
     }
-    // public function saveFromExcel($file_name)
-    // {
-    //     $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader('Xlsx');
-    //     $reader->setReadDataOnly(TRUE);
-    //     $spreadsheet = $reader->load(public_path('storage/') . $file_name);
 
-    //     $worksheet = $spreadsheet->getActiveSheet();
-    //     // Get the highest row number and column letter referenced in the worksheet
-    //     $highestRow = $worksheet->getHighestRow(); // e.g. 10
-    //     $highestColumn = $worksheet->getHighestColumn(); // e.g 'F'
-    //     // Increment the highest column letter
-    //     $highestColumn++;
-    //     $sms_record = [];
-    //     echo '<table>' . "\n";
-    //     for ($row = 5; $row <= $highestRow; ++$row) {
-    //         echo '<tr>' . PHP_EOL;
-    //         for ($col = 'B'; $col != $highestColumn; ++$col) {
-    //             echo '<td>' .
-    //                 $worksheet->getCell($col . $row)
-    //                 ->getValue() .
-    //                 '</td>' . PHP_EOL;
-    //             $sms_record[$col][$row] = $worksheet->getCell($col . $row)->getValue();
-    //         }
-    //         echo '</tr>' . PHP_EOL;
-    //     }
-    //     echo '</table>' . PHP_EOL;
-    //     // dd($sms_record);
-    //     OperatorSmsHistory::insert($sms_record);
-    //     echo 'Data inserted successfully';
-    // }
+    public function convert($file_name)
+    {
+        $pdfFile = public_path('storage/5. software shop limited ssl wireless_May-2023.pdf');
+
+        // Define the path for the converted Excel file
+        $excelFilePath = storage_path('app/public/converted_excel.xlsx');
+
+        // Extract text from PDF
+        $text = (new Pdf())
+            ->setPdf($pdfFile)
+            ->text();
+
+            $lines = explode("\n", $text);
+
+            // Create a new Excel spreadsheet
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+            // Loop through the lines and set them in separate cells, starting from A1
+            foreach ($lines as $row => $line) {
+                $columns = explode("\t", $line);
+                foreach ($columns as $col => $cell) {
+                    $sheet->setCellValueByColumnAndRow($col + 1, $row + 1, $cell);
+                }
+            }
+
+            // Save the Excel file
+            $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+            $writer->save($excelFilePath);
+
+            // Return a download link for the converted Excel file
+            return response()->download($excelFilePath, 'converted_excel.xlsx');
+    }
+
+    public function pdftoexcel()
+    {
+        $pdfFilePath = public_path('storage/5. software shop limited ssl wireless_May-2023.pdf');
+        $excelFilePath = storage_path('app/public/converted_excel.xlsx');
+
+        // Use the appropriate command for the PDF-to-Excel conversion tool
+        $command = "pdftoexcel $pdfFilePath $excelFilePath";
+
+        // Execute the command
+        exec($command);
+
+        // Return a download link for the converted Excel file
+        return response()->download($excelFilePath, 'converted_excel.xlsx');
+    }
+
+    public function pdftocsv()
+    {
+                // Validate the uploaded PDF file
+
+                // Get the uploaded PDF file
+                $pdfFile = public_path('storage/5. software shop limited ssl wireless_May-2023.pdf');
+
+                // Extract text from PDF
+                $text = (new Pdf())
+                    ->setPdf($pdfFile)
+                    ->text();
+
+                // Create a CSV writer
+                $csv = Writer::createFromFileObject(new SplTempFileObject());
+
+                // Split the text into lines and add them as rows to the CSV
+                $lines = explode("\n", $text);
+                foreach ($lines as $line) {
+                    $csv->insertOne([$line]);
+                }
+
+                // Set the CSV headers
+                $csv->output('converted.csv');
+
+                // Return the CSV as a response
+                return response()->stream(
+                    function () use ($csv) {
+                        $csv->output();
+                    },
+                    200,
+                    [
+                        'Content-Type' => 'text/csv',
+                        'Content-Disposition' => 'attachment; filename="converted.csv"',
+                    ]
+                );
+    }
 }

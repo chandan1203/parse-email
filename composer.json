@@ -6,12 +6,16 @@
     "license": "MIT",
     "require": {
         "php": "^7.3|^8.0",
+        "barryvdh/laravel-dompdf": "^2.0",
+        "carlos-meneses/laravel-mpdf": "^2.1",
         "fruitcake/laravel-cors": "^2.0",
         "guzzlehttp/guzzle": "^7.0.1",
         "laravel/framework": "^8.75",
         "laravel/sanctum": "^2.11",
         "laravel/tinker": "^2.5",
-        "phpoffice/phpspreadsheet": "^1.12",
+        "league/csv": "^9.8",
+        "phpoffice/phpspreadsheet": "^1.29",
+        "spatie/pdf-to-text": "^1.52",
         "webklex/laravel-imap": "^4.1"
     },
     "require-dev": {
